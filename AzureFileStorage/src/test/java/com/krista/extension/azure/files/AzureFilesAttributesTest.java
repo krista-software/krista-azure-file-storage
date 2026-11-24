@@ -544,7 +544,7 @@ class AzureFilesAttributesTest {
         void shouldThrowWhenExpiryBeforeStart() {
             // Expiry is before start date, but both are in the future
             String futureYear = String.valueOf(ZonedDateTime.now().getYear() + 10);
-            String badToken = "sv=2024-11-04&se=" + futureYear + "-01-01T00:00:00Z&st=" + futureYear + "-06-01T00:00:00Z&sig=test";
+            String badToken = "REDACTED_SECRET" + futureYear + "-01-01T00:00:00Z&st=" + futureYear + "-06-01T00:00:00Z&sig=test";
 
             Map<String, Object> attrs = new HashMap<>();
             attrs.put(Constants.SAS_TOKEN, badToken);
@@ -566,7 +566,7 @@ class AzureFilesAttributesTest {
             String nearExpiryStr = nearExpiry.toInstant().toString();
             String startStr = startDate.toInstant().toString();
 
-            String expiringToken = "sv=2024-11-04&se=" + nearExpiryStr + "&st=" + startStr + "&sig=test";
+            String expiringToken = "REDACTED_SECRET" + nearExpiryStr + "&st=" + startStr + "&sig=test";
 
             Map<String, Object> attrs = new HashMap<>();
             attrs.put(Constants.SAS_TOKEN, expiringToken);

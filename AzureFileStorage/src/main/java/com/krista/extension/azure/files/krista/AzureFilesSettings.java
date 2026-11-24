@@ -27,7 +27,7 @@ public class AzureFilesSettings {
     public AzureFilesSettings() {
         this.storageAccountName = "vamssolution";
         this.fileShareName = "applicationFiles";
-        this.sasToken = "sv=2024-11-04&ss=f&srt=sco&sp=rwdlc&se=2030-07-01T03:49:20Z&st=2025-06-01T19:49:20Z&spr=https&sig=6eZy%2FSBR32ipYzGagzEBO%2FARf7ylbvPO9HNXMTX4Ugc%3D";
+        this.sasToken = "REDACTED_SECRET";
     }
 
     public String getStorageAccountName() {
