@@ -13,14 +13,16 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.krista;
 
 import app.krista.ksdk.files.FileHandle;
 import app.krista.ksdk.files.FileRepository;
+import com.krista.extension.azure.files.util.FilenameUtil;
 import org.jvnet.hk2.annotations.Service;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +58,15 @@ public class KristaMediaClient {
     public app.krista.model.base.File toKristaFile(File file) throws IOException {
         return toKristaFile(file, file.getName());
     }
-
+    /**
+     * Sanitizes the file name by replacing problematic characters with underscores.
+     *
+     * @param fileName The original file name.
+     * @return The sanitized file name.
+     */
+    private String sanitizeFileName(String fileName) {
+        return FilenameUtil.toSafeFilename(fileName);
+    }
     /**
      * Uploads a file to Krista's media server with a specific filename.
      *
@@ -66,17 +76,24 @@ public class KristaMediaClient {
      * @throws IOException If an I/O error occurs.
      */
     public app.krista.model.base.File toKristaFile(File file, String originalFileName) throws IOException {
-        String fileNameToUse = originalFileName;
+        String fileNameToUse = sanitizeFileName(originalFileName);
         File fileToUpload = file;
         File tempZipFile = null;
 
         try {
             if (isUnsupportedFileFormat(originalFileName)) {
-                String zipFilePath = ZIP_DIR + originalFileName.substring(0, originalFileName.lastIndexOf(".")) + ".zip";
+                // Use a sanitized base name for both the on-disk zip path AND the
+                // name passed to Krista's FileRepository. Both code paths construct
+                // filesystem paths under the hood and crash with InvalidPathException
+                // if the name contains characters unmappable in sun.jnu.encoding
+                // (e.g., '®', '™', smart quotes) on a non-UTF-8 system locale.
+                String baseName = originalFileName.substring(0, originalFileName.lastIndexOf("."));
+                String safeBase = FilenameUtil.sanitizeForFs(baseName);
+                String zipFilePath = ZIP_DIR + File.separator + safeBase + ".zip";
                 compressFile(zipFilePath, file.getAbsolutePath());
                 tempZipFile = new File(zipFilePath);
                 fileToUpload = tempZipFile;
-                fileNameToUse = tempZipFile.getName();
+                fileNameToUse = sanitizeFileName(baseName) + ".zip";
             }
 
             try (final FileHandle fileHandle = fileRepository.createNewFileByName(fileNameToUse)) {

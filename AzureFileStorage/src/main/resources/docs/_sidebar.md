@@ -10,5 +10,8 @@
   - [List Of Directories](pages/ListOfDirectories.md)
   - [Get File](pages/GetFile.md)
 
+- **Monitoring**
+  - [Health Check](pages/HealthCheck.md)
+
 - **Additional Resources**
   - [Release Notes](pages/release_notes.md)

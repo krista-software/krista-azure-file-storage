@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files;
@@ -43,8 +43,10 @@ import java.util.Map;
 @Field.Text(value = Constants.STORAGE_ACCOUNT_NAME, required = true)
 @Field.Text(value = Constants.FILE_SHARE_NAME, required = true)
 @Field.Text(value = Constants.SAS_TOKEN, required = true, isSecured = true)
-@Extension(version = "1.0.1", name = "Azure File Service")
+@Field.Text(value = Constants.SAS_TOKEN_EXPIRY, required = false)
+@Extension(version = "1.0.4", name = "Azure File Service")
 @StaticResource(path = "docs", file = "docs")
+@ChangeLog(file = "resources/docs/pages/release-notes.md")
 public final class AzureFilesExtension {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AzureFilesExtension.class);
@@ -70,6 +72,13 @@ public final class AzureFilesExtension {
     public void validateAttribute(Map<String, Object> connectionAttributes) {
 
         AzureFilesAttributes attributes = AzureFilesAttributes.create(invoker, connectionAttributes);
+
+        // Auto-populate SAS Token Expiry from SAS token if not provided by user
+        if (!attributes.isUserProvidedExpiry() && attributes.hasSasTokenExpiry()) {
+            connectionAttributes.put(Constants.SAS_TOKEN_EXPIRY, attributes.getSasTokenExpiry());
+            LOGGER.info("SAS Token Expiry auto-populated from token: {}", attributes.getSasTokenExpiry());
+        }
+
         validateAndTestConnection(attributes);
     }
 
@@ -89,6 +98,7 @@ public final class AzureFilesExtension {
             // Validate configuration before attempting connection
             LOGGER.debug("Validating Azure Files configuration: {}", attributes);
             attributes.validateConfiguration();
+            attributes.validateSasTokenExpiry();
 
             // Attempt connection test
             AzureFileRestClient client = new AzureFileRestClient(attributes);

@@ -11,6 +11,7 @@ The Azure File Service Extension requires configuration of three essential param
 | Storage Account Name | Text | Yes | The name of your Azure storage account | "mystorageaccount" |
 | File Share Name | Text | Yes | The name of the file share within the storage account | "documents" |
 | SAS Token | Text (Secured) | Yes | Shared Access Signature token with Read and List permissions | "?sv=2024-11-04&ss=f&srt=sco&sp=rl&se=2024-12-31T23:59:59Z..." |
+| SAS Token Expiry | Text | No | SAS token expiry date. Auto-populated from token if left empty | "2030-07-01T03:49:20Z" |
 
 ### Parameter Details
 
@@ -31,6 +32,15 @@ The Azure File Service Extension requires configuration of three essential param
 - **Purpose**: Provides secure, time-limited access with specific permissions
 - **Security**: Stored securely and encrypted in Krista platform
 - **Required Permissions**: Read (r) and List (l) at minimum
+
+#### SAS Token Expiry
+- **Format**: ISO 8601 date-time (e.g., `2030-07-01T03:49:20Z`)
+- **Purpose**: Tracks when the SAS token expires for health monitoring
+- **Auto-Populate**: If left empty, the expiry is automatically parsed from the `se` parameter in the SAS token
+- **Validation on Save**:
+  - If a value is provided, it must match the actual expiry (`se` parameter) from the SAS token. A mismatch will result in a validation error.
+  - If the field is left empty and the SAS token expires within **7 days**, an alert is raised during validation prompting the user to either add the expiry date or generate a new token with a longer validity period.
+  - If the SAS token has already expired, validation will fail with an error regardless of whether the field is filled or empty.
 
 ## Step-by-Step Setup
 
@@ -115,6 +125,22 @@ The Azure File Service Extension uses **SAS Token authentication** exclusively. 
 - **Cause**: SAS token field is empty or contains only whitespace
 - **Resolution**: Generate a SAS token from Azure Portal with 'Read' and 'List' permissions. The token should start with '?sv=' and include all required parameters.
 
+**"SAS Token Expiry date does not match the expiry from SAS token..."**
+- **Cause**: The value entered in the SAS Token Expiry field does not match the actual `se` (signed expiry) parameter in the SAS token
+- **Resolution**: Correct the expiry date to match the token's actual expiry, or leave the field empty to auto-populate from the token.
+
+**"SAS Token is expiring in N day(s)..."**
+- **Cause**: The SAS Token Expiry field was left empty, and the SAS token expires within the next 7 days
+- **Resolution**: Add the SAS Token Expiry date in the field to acknowledge the expiry, or generate a new SAS token with a longer validity period from Azure Portal.
+
+**"SAS Token has expired on ..."**
+- **Cause**: The SAS token's expiry date (`se` parameter) is in the past
+- **Resolution**: Generate a new SAS token from Azure Portal and update the configuration.
+
+**"Invalid SAS Token Expiry date format..."**
+- **Cause**: The value entered in the SAS Token Expiry field is not a valid ISO 8601 date-time
+- **Resolution**: Use the format `yyyy-MM-ddTHH:mm:ssZ` (e.g., `2030-07-01T03:49:20Z`).
+
 ### Connection Test Failures
 
 **"Connection test failed. Please verify your Storage Account Name, File Share Name, and SAS Token are correct..."**
@@ -186,5 +212,6 @@ The Azure File Service Extension uses **SAS Token authentication** exclusively. 
 
 - [Authentication Guide](/pages/authentication.md) - Detailed SAS token generation instructions
 - [Creating Azure App](/pages/CreatingAzureApp.md) - Azure Storage Account setup guide
+- [Health Check](/pages/HealthCheck.md) - Extension health monitoring and SAS token status
 - [List Of Files](/pages/ListOfFiles.md) - File listing operations
 - [Get File](/pages/GetFile.md) - File download operations

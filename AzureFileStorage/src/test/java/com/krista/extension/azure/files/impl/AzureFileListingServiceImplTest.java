@@ -13,158 +13,265 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.impl;
 
-import com.krista.extension.azure.files.AzureFilesAttributes;
 import com.krista.extension.azure.files.client.AzureFileRestClient;
-import com.krista.extension.azure.files.krista.AzureFilesSettings;
-import com.krista.extension.azure.files.krista.KristaMediaClient;
-import com.krista.extension.azure.files.service.AzureFileService;
+import com.krista.extension.azure.files.exception.AzureFilesException;
 import com.krista.extension.azure.files.util.Constants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.HashMap;
+import java.net.http.HttpResponse;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 /**
- * Integration tests for AzureFileListingServiceImpl via unified AzureFileService
- * Tests listing methods with mocked SAS token credentials
+ * Unit tests for AzureFileListingServiceImpl.
+ * All Azure HTTP calls are mocked — no network required.
  */
-@DisplayName("Azure File Listing Service Integration Tests")
+@ExtendWith(MockitoExtension.class)
+@DisplayName("AzureFileListingServiceImpl")
 class AzureFileListingServiceImplTest {
-    private static final Logger logger = LoggerFactory.getLogger(AzureFileListingServiceImplTest.class);
-    private AzureFileService azureFileService;
+
+    @Mock AzureFileRestClient restClient;
+    @SuppressWarnings("unchecked") @Mock HttpResponse<String> httpResponse;
+
+    private AzureFileListingServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        logger.info("Setting up AzureFileListingServiceImplTest with unified AzureFileService");
-        AzureFilesSettings settings = new AzureFilesSettings();
-        Map<String, Object> attributeMap = new HashMap<>();
-        attributeMap.put(Constants.STORAGE_ACCOUNT_NAME, settings.getStorageAccountName());
-        attributeMap.put(Constants.FILE_SHARE_NAME, settings.getFileShareName());
-        attributeMap.put(Constants.SAS_TOKEN, settings.getSasToken());
-        AzureFilesAttributes attributes = new AzureFilesAttributes(attributeMap);
-
-        // Create REST client and specialized services
-        AzureFileRestClient restClient = new AzureFileRestClient(attributes);
-        KristaMediaClient mediaClient = new KristaMediaClient();
-        AzureFileListingServiceImpl listingService = new AzureFileListingServiceImpl(restClient);
-        AzureFileDownloadServiceImpl downloadService = new AzureFileDownloadServiceImpl(restClient, mediaClient);
-
-        // Create unified service
-        azureFileService = new AzureFileServiceImpl(listingService, downloadService);
+        service = new AzureFileListingServiceImpl(restClient);
+        // Standard stub: URL building delegates work transparently
+        when(restClient.buildBaseUrl(anyString()))
+                .thenAnswer(inv -> "https://test.file.core.windows.net/share/" + inv.getArgument(0, String.class));
+        when(restClient.appendSasToken(anyString()))
+                .thenAnswer(inv -> inv.getArgument(0, String.class) + "&sv=test");
     }
-    @Test
-    @Timeout(30) // 30 seconds timeout
-    @DisplayName("Should successfully list all directories from Azure File Share with mocked SAS token")
-    void listOfDirectories() {
-        logger.info("Testing listDirectories with mocked SAS token credentials");
 
-        try {
-            // Arrange - Test parameters
-            String path = "";  // Root directory
-            boolean recursive = false;  // Non-recursive for this test
+    // ==================== Helpers ====================
 
-            logger.info("Calling listDirectories with path: '{}', recursive: {}", path, recursive);
+    private static String xmlWith(List<String> fileNames, List<String> dirNames) {
+        StringBuilder sb = new StringBuilder(
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                "<EnumerationResults><Entries>");
+        for (String f : fileNames) {
+            sb.append("<File><Name>").append(f).append("</Name></File>");
+        }
+        for (String d : dirNames) {
+            sb.append("<Directory><Name>").append(d).append("</Name></Directory>");
+        }
+        sb.append("</Entries></EnumerationResults>");
+        return sb.toString();
+    }
 
-            // Act - Call the service method
-            List<String> listDirectories = azureFileService.listDirectories(path, recursive);
+    private void givenAzureReturns(int statusCode, String body) throws Exception {
+        when(restClient.sendGetString(anyString())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(statusCode);
+        if (body != null) {
+            when(httpResponse.body()).thenReturn(body);
+        }
+    }
 
-            // Assert - Verify results
-            if (listDirectories != null) {
-                logger.info(" listDirectories test passed - Found {} directories", listDirectories.size());
+    // ==================== listFiles ====================
 
-                // Log all directories found
-                if (!listDirectories.isEmpty()) {
-                    logger.info("Directories found:");
-                    listDirectories.forEach(directory ->
-                        logger.info("  - {}", directory));
-                } else {
-                    logger.info("No directories found in the specified path");
-                }
+    @Nested
+    @DisplayName("listFiles")
+    class ListFiles {
 
-                // Basic assertions
-                assertNotNull(listDirectories, "Directory list should not be null");
-                logger.info("Directory listing completed successfully");
+        @Test
+        @DisplayName("returns files from Azure XML response")
+        void returnsFilesFromXml() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("report.pdf", "data.xlsx"), List.of()));
 
-            } else {
-                logger.warn("Directory listing returned null - this may indicate an error");
-                fail("Directory listing should not return null");
-            }
+            List<String> result = service.listFiles("", null, false);
 
-        } catch (Exception cause) {
-            logger.error(" listDirectories test failed with exception: {}", cause.getMessage(), cause);
-            fail("Directory listing should not throw exception: " + cause.getMessage());
+            assertEquals(2, result.size());
+            assertTrue(result.stream().anyMatch(p -> p.endsWith("report.pdf")));
+            assertTrue(result.stream().anyMatch(p -> p.endsWith("data.xlsx")));
         }
 
-        logger.info("listOfDirectories test completed");
-    }
-    @Test
-    @Timeout(30) // 30 seconds timeout
-    @DisplayName("Should successfully list all files from Azure File Share with mocked SAS token")
-    void listOfFiles() {
-        logger.info("Testing listFiles with mocked SAS token credentials");
+        @Test
+        @DisplayName("returns empty list when directory has no files")
+        void emptyDirectory_returnsEmptyList() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of(), List.of()));
 
-        try {
-            // Arrange - Test parameters
-            String basePath = "";  // Root directory
-            String extensionFilter = "";  // No extension filter
-            boolean recursive = false;  // Non-recursive for this test
+            List<String> result = service.listFiles("", null, false);
 
-            logger.info("Calling listFiles with path: '{}', extensionFilter: '{}', recursive: {}",
-                       basePath, extensionFilter, recursive);
-
-            // Act - Call the service method
-            List<String> listFiles = azureFileService.listFiles(basePath, extensionFilter, recursive);
-
-            // Assert - Verify results
-            if (listFiles != null) {
-                logger.info("listFiles test passed - Found {} files", listFiles.size());
-
-                // Log all files found
-                if (!listFiles.isEmpty()) {
-                    logger.info("Files found:");
-                    listFiles.forEach(file ->
-                        logger.info("  - {}", file));
-
-                    // Additional assertions for file listing
-                    assertTrue(listFiles.stream().allMatch(file -> !file.isEmpty()),
-                              "All file paths should not be empty");
-
-                    // Check if files have proper path format
-                    logger.info("File path validation completed");
-
-                } else {
-                    logger.info("No files found in the specified path");
-                }
-
-                // Basic assertions
-                assertNotNull(listFiles, "File list should not be null");
-                logger.info("File listing completed successfully");
-
-            } else {
-                logger.warn("File listing returned null - this may indicate an error");
-                fail("File listing should not return null");
-            }
-
-        } catch (Exception e) {
-            logger.error("listFiles test failed with exception: {}", e.getMessage(), e);
-            fail("File listing should not throw exception: " + e.getMessage());
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
         }
 
-        logger.info("listOfFiles test completed");
+        @Test
+        @DisplayName("null extension filter returns all files")
+        void nullExtensionFilter_returnsAllFiles() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("a.pdf", "b.docx", "c.exe"), List.of()));
+
+            List<String> result = service.listFiles("", null, false);
+
+            assertEquals(3, result.size());
+        }
+
+        @Test
+        @DisplayName("extension filter returns only matching files")
+        void extensionFilter_returnsOnlyMatchingFiles() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("a.pdf", "b.docx", "c.pdf"), List.of()));
+
+            List<String> result = service.listFiles("", ".pdf", false);
+
+            assertEquals(2, result.size());
+            assertTrue(result.stream().allMatch(p -> p.endsWith(".pdf")));
+        }
+
+        @Test
+        @DisplayName("extension filter without leading dot also matches")
+        void extensionFilterWithoutDot_matchesFiles() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("a.pdf", "b.docx"), List.of()));
+
+            List<String> result = service.listFiles("", "pdf", false);
+
+            assertEquals(1, result.size());
+            assertTrue(result.get(0).endsWith(".pdf"));
+        }
+
+        @Test
+        @DisplayName("multi-extension filter returns files matching any extension")
+        void multiExtensionFilter_returnsMatchingFiles() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("a.pdf", "b.docx", "c.txt"), List.of()));
+
+            List<String> result = service.listFiles("", ".pdf,.docx", false);
+
+            assertEquals(2, result.size());
+        }
+
+        @Test
+        @DisplayName("HTTP 404 throws AzureFilesException")
+        void http404_throwsAzureFilesException() throws Exception {
+            givenAzureReturns(404, null);
+
+            AzureFilesException ex = assertThrows(AzureFilesException.class,
+                    () -> service.listFiles("missing/path", null, false));
+
+            assertEquals(Constants.ERROR_FILE_NOT_FOUND, ex.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("HTTP 401 throws AzureFilesException with UNAUTHORIZED code")
+        void http401_throwsAzureFilesExceptionUnauthorized() throws Exception {
+            givenAzureReturns(401, null);
+
+            AzureFilesException ex = assertThrows(AzureFilesException.class,
+                    () -> service.listFiles("", null, false));
+
+            assertEquals(Constants.ERROR_UNAUTHORIZED, ex.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("HTTP 403 throws AzureFilesException with ACCESS_FORBIDDEN code")
+        void http403_throwsAzureFilesExceptionForbidden() throws Exception {
+            givenAzureReturns(403, null);
+
+            AzureFilesException ex = assertThrows(AzureFilesException.class,
+                    () -> service.listFiles("", null, false));
+
+            assertEquals(Constants.ERROR_ACCESS_FORBIDDEN, ex.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("path with leading slash is normalized — no exception thrown")
+        void leadingSlashPath_normalized() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("file.pdf"), List.of()));
+
+            assertDoesNotThrow(() -> service.listFiles("/docs", null, false));
+        }
+
+        @Test
+        @DisplayName("null path is treated as root — no exception thrown")
+        void nullPath_treatedAsRoot() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("file.pdf"), List.of()));
+
+            assertDoesNotThrow(() -> service.listFiles(null, null, false));
+        }
     }
 
+    // ==================== listDirectories ====================
+
+    @Nested
+    @DisplayName("listDirectories")
+    class ListDirectories {
+
+        @Test
+        @DisplayName("returns directory list from Azure XML response")
+        void returnsDirectoriesFromXml() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of(), List.of("docs", "images")));
+
+            List<String> result = service.listDirectories("", false);
+
+            assertEquals(2, result.size());
+            assertTrue(result.stream().anyMatch(p -> p.endsWith("docs")));
+            assertTrue(result.stream().anyMatch(p -> p.endsWith("images")));
+        }
+
+        @Test
+        @DisplayName("returns empty list when no subdirectories exist")
+        void noDirs_returnsEmptyList() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of("file.pdf"), List.of()));
+
+            List<String> result = service.listDirectories("", false);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("HTTP 404 throws AzureFilesException")
+        void http404_throwsAzureFilesException() throws Exception {
+            givenAzureReturns(404, null);
+
+            AzureFilesException ex = assertThrows(AzureFilesException.class,
+                    () -> service.listDirectories("missing/path", false));
+
+            assertEquals(Constants.ERROR_FILE_NOT_FOUND, ex.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("HTTP 401 throws AzureFilesException with UNAUTHORIZED code")
+        void http401_throwsAzureFilesException() throws Exception {
+            givenAzureReturns(401, null);
+
+            AzureFilesException ex = assertThrows(AzureFilesException.class,
+                    () -> service.listDirectories("", false));
+
+            assertEquals(Constants.ERROR_UNAUTHORIZED, ex.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("null path is treated as root — no exception thrown")
+        void nullPath_treatedAsRoot() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of(), List.of("subdir")));
+
+            assertDoesNotThrow(() -> service.listDirectories(null, false));
+        }
+
+        @Test
+        @DisplayName("full directory path is built correctly from base path and entry name")
+        void fullPathIsBuiltFromBasePathAndEntry() throws Exception {
+            givenAzureReturns(200, xmlWith(List.of(), List.of("reports")));
+
+            List<String> result = service.listDirectories("archive", false);
+
+            assertEquals(1, result.size());
+            assertEquals("archive/reports", result.get(0));
+        }
+    }
 }

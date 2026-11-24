@@ -1,0 +1,28 @@
+# =============================================================================
+# Azure File Storage Extension - Integration Test Config Template
+#
+# Copy this file to config.properties and fill in your real Azure credentials.
+# config.properties is NOT committed (see .gitignore).
+#
+# To run integration tests:
+#   ./gradlew integrationTest
+# =============================================================================
+
+# --- Required: Azure Files connection ---
+# Storage account name (lowercase, no spaces) - Azure Portal > Storage accounts
+storageAccountName=YOUR_STORAGE_ACCOUNT_NAME
+
+# File share name within the storage account - Storage Account > File shares
+fileShareName=YOUR_FILE_SHARE_NAME
+
+# SAS token with Read + List permissions on the File service
+# Generate via: Storage Account > Shared access signature
+# Allowed services: File | Resource types: Service, Container, Object
+# Permissions: Read, List | Set expiry far enough out (e.g., 30 days)
+# Format: sv=2024-...&se=2030-07-01T03:49:20Z&sp=rl&sig=...
+# Note: omit the leading '?' if present
+sasToken=YOUR_SAS_TOKEN
+
+# Optional: SAS token expiry date (auto-parsed from 'se' param if blank)
+# Format: yyyy-MM-ddTHH:mm:ssZ
+sasTokenExpiry=

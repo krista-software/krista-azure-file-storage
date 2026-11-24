@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.util;
@@ -128,25 +128,7 @@ public final class AzureHttpErrorHandler {
         );
     }
 
-    /**
-     * Immutable error response containing message and code.
-     */
-    public static class ErrorResponse {
-        private final String message;
-        private final String errorCode;
-
-        public ErrorResponse(String message, String errorCode) {
-            this.message = message;
-            this.errorCode = errorCode;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        public String getErrorCode() {
-            return errorCode;
-        }
-    }
+    /** Immutable error response containing message and error code. */
+    public record ErrorResponse(String message, String errorCode) {}
 }
 

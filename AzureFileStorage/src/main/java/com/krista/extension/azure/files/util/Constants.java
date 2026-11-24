@@ -13,12 +13,10 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.util;
-
-import java.util.Set;
 
 /**
  * Central constants repository for Azure Files extension.
@@ -38,6 +36,9 @@ public final class Constants {
 
     /** Configuration key for SAS Token */
     public static final String SAS_TOKEN = "SAS Token";
+
+    /** Configuration key for SAS Token Expiry Date (auto-populated from SAS token 'se' parameter) */
+    public static final String SAS_TOKEN_EXPIRY = "SAS Token Expiry";
 
     // ==================== Azure Files API Endpoints ====================
 
@@ -112,23 +113,6 @@ public final class Constants {
     /** Extension separator for multiple extensions */
     public static final String EXTENSION_SEPARATOR = ",";
 
-    // ==================== File Validation ====================
-
-    /**
-     * Set of allowed file extensions for security.
-     * Prevents downloading potentially dangerous files like executables.
-     */
-    public static final Set<String> ALLOWED_FILE_EXTENSIONS = Set.of(
-        // Documents
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-        // Text files
-        ".txt", ".csv", ".json", ".xml",
-        // Images
-        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg",
-        // Archives
-        ".zip", ".rar", ".7z", ".tar", ".gz"
-    );
-
     // ==================== Response Map Keys ====================
 
     /** Response key for file name */
@@ -145,6 +129,32 @@ public final class Constants {
 
     /** Response key for error code */
     public static final String KEY_ERROR_CODE = "errorCode";
+
+    // ==================== ResponseHandler Keys ====================
+
+    /** Response wrapper key for file info map */
+    public static final String KEY_RESPONSE_FILE_INFO = "File Info";
+
+    /** Response key for success flag */
+    public static final String KEY_RESPONSE_SUCCESS = "Success";
+
+    /** Response key for Krista file object in extension response */
+    public static final String KEY_RESPONSE_FILE = "File";
+
+    /** Response key for error message in list/file responses */
+    public static final String KEY_RESPONSE_ERROR_MSG = "Error";
+
+    /** Response key for error code in list/file responses */
+    public static final String KEY_RESPONSE_ERROR_CODE_FIELD = "ErrorCode";
+
+    /** Response key for informational message */
+    public static final String KEY_RESPONSE_MESSAGE = "Message";
+
+    /** List field name for file listing responses */
+    public static final String LIST_NAME_FILES = "List Of Files";
+
+    /** List field name for directory listing responses */
+    public static final String LIST_NAME_DIRECTORIES = "List Of Directories";
 
     // ==================== Error Codes ====================
 

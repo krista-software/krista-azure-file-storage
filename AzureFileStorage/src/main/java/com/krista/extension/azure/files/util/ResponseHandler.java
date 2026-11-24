@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.util;
@@ -42,18 +42,12 @@ public class ResponseHandler {
      */
     public static ExtensionResponse createFileSuccessResponse(Map<String, Object> fileInfo) {
         LOGGER.debug("Creating file response with file info: {}", fileInfo);
-        File file = null;
-
-        for (Map.Entry<String, Object> entry : fileInfo.entrySet()) {
-            if ("kristafile".equals(entry.getKey())) {
-                file = (File) entry.getValue();
-            }
-        }
+        File file = (File) fileInfo.get(Constants.KEY_KRISTA_FILE);
 
         Map<String, Object> responseMap = new HashMap<>();
-        responseMap.put("File Info", fileInfo);
-        responseMap.put("Success", true);
-        responseMap.put("File", file);
+        responseMap.put(Constants.KEY_RESPONSE_FILE_INFO, fileInfo);
+        responseMap.put(Constants.KEY_RESPONSE_SUCCESS, true);
+        responseMap.put(Constants.KEY_RESPONSE_FILE, file);
 
         return new ExtensionResponseBuilder().success(responseMap).build();
     }
@@ -64,46 +58,34 @@ public class ResponseHandler {
     public static ExtensionResponse createExceptionFileResponse(Map<String, Object> fileInfo) {
         LOGGER.debug("Creating exception file response with file info: {}", fileInfo);
         Map<String, Object> responseMap = new HashMap<>();
-        responseMap.put("File Info", fileInfo);
-        responseMap.put("Success", false);
-        responseMap.put("File", null);
+        responseMap.put(Constants.KEY_RESPONSE_FILE_INFO, fileInfo);
+        responseMap.put(Constants.KEY_RESPONSE_SUCCESS, false);
+        responseMap.put(Constants.KEY_RESPONSE_FILE, null);
 
         return new ExtensionResponseBuilder().success(responseMap).build();
     }
 
     /**
      * Creates an error response for list operations with error details.
-     * Used when operations fail (404, 403, 401, 500, timeout, etc.)
-     *
-     * @param listName the name of the list field (e.g., "List Of Files")
-     * @param errorMessage user-friendly error message
-     * @param errorCode error code for programmatic handling
-     * @return ExtensionResponse with Success=false and error details
      */
     public static ExtensionResponse createListErrorResponse(
             String listName,
             String errorMessage,
             String errorCode) {
 
-        LOGGER.error("Creating list error response: {} - {} (code: {})",
-            listName, errorMessage, errorCode);
+        LOGGER.error("Creating list error response: {} - {} (code: {})", listName, errorMessage, errorCode);
 
         Map<String, Object> responseMap = new HashMap<>();
         responseMap.put(listName, Collections.emptyList());
-        responseMap.put("Success", false);
-        responseMap.put("Error", errorMessage);
-        responseMap.put("ErrorCode", errorCode);
+        responseMap.put(Constants.KEY_RESPONSE_SUCCESS, false);
+        responseMap.put(Constants.KEY_RESPONSE_ERROR_MSG, errorMessage);
+        responseMap.put(Constants.KEY_RESPONSE_ERROR_CODE_FIELD, errorCode);
 
         return new ExtensionResponseBuilder().success(responseMap).build();
     }
 
     /**
      * Creates a success response for empty list (valid path, no results).
-     * Used when operation succeeds but directory is empty.
-     *
-     * @param listName the name of the list field (e.g., "List Of Files")
-     * @param message informational message for the user
-     * @return ExtensionResponse with Success=true and empty list
      */
     public static ExtensionResponse createEmptyListSuccessResponse(
             String listName,
@@ -113,30 +95,28 @@ public class ResponseHandler {
 
         Map<String, Object> responseMap = new HashMap<>();
         responseMap.put(listName, Collections.emptyList());
-        responseMap.put("Success", true);
-        responseMap.put("Message", message);
+        responseMap.put(Constants.KEY_RESPONSE_SUCCESS, true);
+        responseMap.put(Constants.KEY_RESPONSE_MESSAGE, message);
 
         return new ExtensionResponseBuilder().success(responseMap).build();
     }
 
     /**
      * Creates an empty file list success response.
-     * Used when path is valid but contains no files.
      */
     public static ExtensionResponse createEmptyFileSuccessResponse() {
         return createEmptyListSuccessResponse(
-            "List Of Files",
+            Constants.LIST_NAME_FILES,
             "No files found (directory is empty)"
         );
     }
 
     /**
      * Creates an empty directory list success response.
-     * Used when path is valid but contains no subdirectories.
      */
     public static ExtensionResponse createEmptyDirectorySuccessResponse() {
         return createEmptyListSuccessResponse(
-            "List Of Directories",
+            Constants.LIST_NAME_DIRECTORIES,
             "No directories found (no subdirectories)"
         );
     }
@@ -156,7 +136,7 @@ public class ResponseHandler {
 
         Map<String, Object> responseMap = new HashMap<>();
         responseMap.put(listName, itemList);
-        responseMap.put("Success", true);
+        responseMap.put(Constants.KEY_RESPONSE_SUCCESS, true);
         return new ExtensionResponseBuilder().success(responseMap).build();
     }
 }

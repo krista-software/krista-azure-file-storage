@@ -13,19 +13,20 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.catalog;
 
 import app.krista.extension.executor.ExtensionResponse;
-import app.krista.extension.executor.ExtensionResponseBuilder;
 import app.krista.extension.impl.anno.Attribute;
 import app.krista.extension.impl.anno.CatalogRequest;
 import app.krista.extension.impl.anno.Domain;
 import app.krista.extension.impl.anno.Field;
 import com.krista.extension.azure.files.exception.AzureFilesException;
 import com.krista.extension.azure.files.impl.AzureFileServiceImpl;
+import com.krista.extension.azure.files.service.AzureFilesTelemetryService;
+import com.krista.extension.azure.files.util.Constants;
 import com.krista.extension.azure.files.util.ResponseHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,20 +34,15 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
- * Azure Files Operation Area
- * <p>
- * This class handles catalog requests for Azure Files operations, providing
- * functionality to list files, list directories, and download files from
- * Azure File Share storage.
- * consistent implementation across the extension.
- * </p>
+ * Catalog operations for Azure File Share: list files, list directories, and download files.
  *
- * @author Krista Extension Framework
- * @version 1.0.0
- * @since 2024-06-27
+ * <p><b>Failure contract:</b> every method in this class ALWAYS returns an
+ * {@link ExtensionResponse} built with {@code ExtensionResponseBuilder.success()}.
+ * Errors are surfaced through a {@code Success=false} field in the response map, never
+ * through a {@code FAILURE} result code, so the Krista runtime can always continue the
+ * conversation and display the error message to the user.
  */
 @Domain(id = "catEntryDomain_b77b40c4-1319-4b32-9b55-07d360453974",
         name = "Cloud Storage",
@@ -56,26 +52,19 @@ import java.util.Optional;
 public class AzureFilesOperationArea {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AzureFilesOperationArea.class);
+
     private final AzureFileServiceImpl azureFileService;
+    private final AzureFilesTelemetryService telemetryService;
 
     @Inject
-    public AzureFilesOperationArea(AzureFileServiceImpl azureFileService) {
-
+    public AzureFilesOperationArea(AzureFileServiceImpl azureFileService,
+                                   AzureFilesTelemetryService telemetryService) {
         this.azureFileService = azureFileService;
+        this.telemetryService = telemetryService;
     }
 
-    /**
-     * Lists files in an Azure File Share directory.
-     * <p>
-     * This method retrieves a list of files from the specified path in Azure File Share.
-     * It supports optional filtering by file extension and recursive searching.
-     * </p>
-     *
-     * @param filePath             The path in Azure File Share to list files from
-     * @param fileExtensionsFilter Optional comma-separated list of file extensions to filter by
-     * @param recursiveSearch      Whether to search recursively through subdirectories
-     * @return An ExtensionResponse containing the list of files or an error message
-     */
+    // ==================== Catalog Operations ====================
+
     @CatalogRequest(
             id = "localDomainRequest_f45a0a12-5d1b-4d6e-a63d-e2267c834e4c",
             name = "List Of Files",
@@ -92,60 +81,41 @@ public class AzureFilesOperationArea {
         LOGGER.info("Catalog request: List Of Files - path='{}', filter='{}', recursive={}",
                 filePath, fileExtensionsFilter, recursiveSearch);
 
+        AzureFilesTelemetryService.TelemetryContext ctx =
+                telemetryService.recordRequestStart("azure.files", "list_files");
+
         try {
-            // Call service - will throw AzureFilesException if error occurs
             List<String> files = azureFileService.listFiles(
                     filePath,
                     fileExtensionsFilter,
-                    recursiveSearch
+                    Boolean.TRUE.equals(recursiveSearch)
             );
 
-            //  If we reach here, operation succeeded
-            if (files.isEmpty()) {
-                // Valid path, but directory is empty
-                LOGGER.info("No files found at path '{}' (directory is empty)", filePath);
-                return ResponseHandler.createEmptyFileSuccessResponse();
-            }
+            ExtensionResponse response = files.isEmpty()
+                    ? ResponseHandler.createEmptyFileSuccessResponse()
+                    : ResponseHandler.createListResponse(Constants.LIST_NAME_FILES, files);
 
-            // Valid path with results
-            LOGGER.info("Successfully listed {} files from path '{}'", Optional.of(files.size()), filePath);
-            return ResponseHandler.createListResponse("List Of Files", files);
+            LOGGER.info("List Of Files succeeded: {} files at path '{}'", files.size(), filePath);
+            telemetryService.recordSuccess(ctx);
+            return response;
 
         } catch (AzureFilesException e) {
-            //  Operation failed (404, 403, 401, 500, timeout, etc.)
-            LOGGER.error("Failed to list files from path '{}': {} (code: {})",
-                    filePath, e.getMessage(), e.getErrorCode());
-
-            return ResponseHandler.createListErrorResponse(
-                    "List Of Files",
-                    e.getMessage(),
-                    e.getErrorCode()
-            );
+            LOGGER.error("List Of Files failed at path '{}': {} (code: {})", filePath, e.getMessage(), e.getErrorCode());
+            ExtensionResponse response = ResponseHandler.createListErrorResponse(
+                    Constants.LIST_NAME_FILES, e.getMessage(), e.getErrorCode());
+            telemetryService.recordFailure(ctx, response);
+            return response;
 
         } catch (Exception e) {
-            //  Unexpected error
-            LOGGER.error("Unexpected error listing files from path '{}': {}",
-                    filePath, e.getMessage(), e);
-
+            LOGGER.error("List Of Files unexpected error at path '{}': {}", filePath, e.getMessage(), e);
+            telemetryService.recordException(ctx, e);
             return ResponseHandler.createListErrorResponse(
-                    "List Of Files",
-                    "An unexpected error occurred: " + e.getMessage(),
-                    "UNEXPECTED_ERROR"
-            );
+                    Constants.LIST_NAME_FILES,
+                    "An unexpected error occurred while listing files. Please try again.",
+                    Constants.ERROR_UNEXPECTED);
         }
     }
 
-    /**
-     * Lists directories in an Azure File Share path.
-     * <p>
-     * This method retrieves a list of directories from the specified path in Azure File Share.
-     * It supports optional recursive searching through subdirectories.
-     * </p>
-     *
-     * @param filePath        The path in Azure File Share to list directories from
-     * @param recursiveSearch Whether to search recursively through subdirectories
-     * @return An ExtensionResponse containing the list of directories or an error message
-     */
     @CatalogRequest(
             id = "localDomainRequest_2741803f-5ec0-41fe-8fd0-39e6ec102f7e",
             name = "List Of Directories",
@@ -160,62 +130,42 @@ public class AzureFilesOperationArea {
                     attributes = {@Attribute(name = "visualWidth", value = "S")},
                     options = {}) Boolean recursiveSearch) {
 
-        LOGGER.info("Catalog request: List Of Directories - path='{}', recursive={}",
-                filePath, recursiveSearch);
+        LOGGER.info("Catalog request: List Of Directories - path='{}', recursive={}", filePath, recursiveSearch);
+
+        AzureFilesTelemetryService.TelemetryContext ctx =
+                telemetryService.recordRequestStart("azure.files", "list_directories");
 
         try {
-            // Call service - will throw AzureFilesException if error occurs
             List<String> directories = azureFileService.listDirectories(
                     filePath,
-                    recursiveSearch
+                    Boolean.TRUE.equals(recursiveSearch)
             );
 
-            //  If we reach here, operation succeeded
-            if (directories.isEmpty()) {
-                // Valid path, but no subdirectories
-                LOGGER.info("No directories found at path '{}' (no subdirectories)", filePath);
-                return ResponseHandler.createEmptyDirectorySuccessResponse();
-            }
+            ExtensionResponse response = directories.isEmpty()
+                    ? ResponseHandler.createEmptyDirectorySuccessResponse()
+                    : ResponseHandler.createListResponse(Constants.LIST_NAME_DIRECTORIES, directories);
 
-            // Valid path with results
-            LOGGER.info("Successfully listed {} directories from path '{}'",
-                    Optional.of(directories.size()), filePath);
-            return ResponseHandler.createListResponse("List Of Directories", directories);
+            LOGGER.info("List Of Directories succeeded: {} dirs at path '{}'", directories.size(), filePath);
+            telemetryService.recordSuccess(ctx);
+            return response;
 
         } catch (AzureFilesException e) {
-            //  Operation failed (404, 403, 401, 500, timeout, etc.)
-            LOGGER.error("Failed to list directories from path '{}': {} (code: {})",
-                    filePath, e.getMessage(), e.getErrorCode());
-
-            return ResponseHandler.createListErrorResponse(
-                    "List Of Directories",
-                    e.getMessage(),
-                    e.getErrorCode()
-            );
+            LOGGER.error("List Of Directories failed at path '{}': {} (code: {})", filePath, e.getMessage(), e.getErrorCode());
+            ExtensionResponse response = ResponseHandler.createListErrorResponse(
+                    Constants.LIST_NAME_DIRECTORIES, e.getMessage(), e.getErrorCode());
+            telemetryService.recordFailure(ctx, response);
+            return response;
 
         } catch (Exception e) {
-            //  Unexpected error
-            LOGGER.error("Unexpected error listing directories from path '{}': {}",
-                    filePath, e.getMessage(), e);
-
+            LOGGER.error("List Of Directories unexpected error at path '{}': {}", filePath, e.getMessage(), e);
+            telemetryService.recordException(ctx, e);
             return ResponseHandler.createListErrorResponse(
-                    "List Of Directories",
-                    "An unexpected error occurred: " + e.getMessage(),
-                    "UNEXPECTED_ERROR"
-            );
+                    Constants.LIST_NAME_DIRECTORIES,
+                    "An unexpected error occurred while listing directories. Please try again.",
+                    Constants.ERROR_UNEXPECTED);
         }
     }
 
-    /**
-     * Downloads a file from Azure File Share.
-     * <p>
-     * This method retrieves a file from the specified path in Azure File Share
-     * and returns it along with its metadata.
-     * </p>
-     *
-     * @param filePath The path to the file in Azure File Share
-     * @return An ExtensionResponse containing the file and its metadata or an error message
-     */
     @CatalogRequest(
             id = "localDomainRequest_d54872b8-951d-4bb2-a591-d89062e587b6",
             name = "Get File",
@@ -228,20 +178,38 @@ public class AzureFilesOperationArea {
     public ExtensionResponse getFile(
             @Field.Text(name = "File Path", required = false, attributes = {@Attribute(name = "visualWidth", value = "S")}, options = {}) String filePath) {
 
-        LOGGER.debug("Getting file from path: {}", filePath);
+        LOGGER.info("Catalog request: Get File - path='{}'", filePath);
+
+        AzureFilesTelemetryService.TelemetryContext ctx =
+                telemetryService.recordRequestStart("azure.files", "get_file");
 
         try {
             Map<String, Object> fileInfo = azureFileService.getFile(filePath);
-            if (fileInfo.get("error") != null) {
-                LOGGER.error("Failed to get file from path: {}", filePath);
-                return ResponseHandler.createExceptionFileResponse(fileInfo);
+
+            if (fileInfo.containsKey(Constants.KEY_ERROR)) {
+                LOGGER.error("Get File failed at path '{}': {}", filePath, fileInfo.get(Constants.KEY_ERROR));
+                ExtensionResponse response = ResponseHandler.createExceptionFileResponse(fileInfo);
+                telemetryService.recordFailure(ctx, response);
+                return response;
             }
-            LOGGER.info("Successfully retrieved file: {}", filePath);
-            return ResponseHandler.createFileSuccessResponse(fileInfo);
-        } catch (Exception cause) {
-            LOGGER.error("Unexpected error getting file from path: {}", filePath, cause);
-            return new ExtensionResponseBuilder().failure("Failed to get file: " + cause.getMessage(), cause).build();
+
+            LOGGER.info("Get File succeeded: '{}'", filePath);
+            ExtensionResponse response = ResponseHandler.createFileSuccessResponse(fileInfo);
+            telemetryService.recordSuccess(ctx);
+            return response;
+
+        } catch (Exception e) {
+            // getFile() is designed to never throw, but this is the final safety net.
+            // We MUST return Success=false via the structured response, NOT .failure(),
+            // to prevent the Krista runtime from halting the conversation.
+            LOGGER.error("Get File unexpected exception at path '{}': {}", filePath, e.getMessage(), e);
+            telemetryService.recordException(ctx, e);
+
+            Map<String, Object> errorInfo = Map.of(
+                    Constants.KEY_ERROR, "An unexpected error occurred while downloading the file. Please try again.",
+                    Constants.KEY_ERROR_CODE, Constants.ERROR_UNEXPECTED
+            );
+            return ResponseHandler.createExceptionFileResponse(errorInfo);
         }
     }
-
 }

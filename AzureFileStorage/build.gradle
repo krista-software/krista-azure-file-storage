@@ -1,10 +1,49 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id "jacoco"
+    id("org.sonarqube") version "6.3.1.5724"
 }
 
-
 group 'app.krista.extensions.essentials.cloudstorage'
+
+
+sonar {
+    properties {
+        property('sonar.projectName', 'SonarScanner for Krista Global Catalog (AzureFileService with Jacoco code coverage)')
+        property("sonar.projectKey", "sonar-scanner-AzureFileService")
+        property("sonar.sources", "src/main/java")
+        property("sonar.tests", "src/test/java")
+        property("sonar.java.binaries", "build/classes/java/main")
+        property("sonar.java.test.binaries", "build/classes/java/test")
+        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        property("sonar.junit.reportPaths", "build/test-results/test")
+    }
+
+}
+tasks.test {
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+    // Generate coverage report after tests run
+    finalizedBy(tasks.jacocoTestReport)
+}
+jacoco {
+    toolVersion = "0.8.11"
+}
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required = true   // Required for SonarQube
+        html.required = true  // Useful for local viewing
+        csv.required = false
+    }
+}
+// Ensure Sonar runs only after JaCoCo report generation
+tasks.named("sonar") {
+    dependsOn(tasks.jacocoTestReport)
+}
+
 def computedVersion = "local"
 def computedBaseName = "AzureFileService"
 
@@ -30,8 +69,10 @@ tasks.register("setReleaseProperties") {
     }
 }
 
-sourceCompatibility = '21'
-targetCompatibility = '21'
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
 
 repositories {
     mavenLocal()
@@ -41,25 +82,15 @@ repositories {
     mavenCentral()
 }
 
-configurations {
-    implementation {
-        canBeConsumed = false
-        canBeResolved = true
-    }
-}
-
-
 dependencies {
-    implementation 'app.krista:krista-apis:1.0.117'
-    annotationProcessor 'app.krista:extension-impl-anno-processors:1.0.117'
+    implementation 'app.krista:krista-apis:1.0.121'
+    annotationProcessor 'app.krista:extension-impl-anno-processors:1.0.121'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.mockito:mockito-core:5.11.0'
     testImplementation 'org.mockito:mockito-junit-jupiter:5.11.0'
 }
 
-test {
-    useJUnitPlatform()
-}
 tasks.register('createSourceDir', Exec) {
     dependsOn processResources
     commandLine "mkdir", "-p", "$projectDir/build/classes/java/main/META-INF/project"
@@ -185,13 +216,20 @@ jar {
     archiveBaseName = project.ext.has("finalBaseName") ? project.ext.finalBaseName : "AzureFileService"
     manifest {}
     from {
-        configurations.implementation.collect {
+        configurations.runtimeClasspath.collect {
             it.isDirectory() ? it : zipTree(it)
         }
     }
     exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
     duplicatesStrategy = "exclude"
 }
-test {
-    useJUnitPlatform()
+// Integration tests — run manually with: ./gradlew integrationTest
+// Requires real Azure credentials in src/main/resources/config.properties (not committed)
+tasks.register('integrationTest', Test) {
+    group = 'verification'
+    description = 'Runs @Tag("integration") tests against real Azure credentials (requires config.properties)'
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    shouldRunAfter test
 }

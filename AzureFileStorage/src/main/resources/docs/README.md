@@ -12,6 +12,8 @@ The Azure File Service Extension provides seamless integration between Krista pl
 - **🔐 Secure Authentication** - SAS Token authentication with time-limited access control
 - **⚡ High Performance** - Optimized for large directory structures with timeout protection
 - **🛡️ File Validation** - Built-in security with allowed file type restrictions and size limits
+- **🩺 Health Check** - Monitor extension health, system metrics, and SAS token expiry status
+- **📊 Telemetry** - OpenTelemetry-based metrics tracking for all catalog operations
 
 ## Quick Start Guide
 
@@ -34,15 +36,18 @@ The Azure File Service Extension provides seamless integration between Krista pl
 - **[List Of Directories](pages/ListOfDirectories.md)** - Explore directory structures
 - **[Get File](pages/GetFile.md)** - Download files with metadata
 
+### Monitoring
+- **[Health Check](pages/HealthCheck.md)** - Extension health monitoring, system metrics, and SAS token status
+
 ### Additional Resources
 - **[Release Notes](pages/release_notes.md)** - Version history and updates
 
 ## Support & Resources
 
-- **Extension Version**: 1.0.0
-- **Krista Service APIs Java**: 1.0.115
-- **Global Catalog Version**: GC-2025.10.1
-- **Developer**: Ramgopal Patidar
+- **Extension Version**: 1.0.3
+- **Krista Service APIs Java**: 1.0.121
+- **Global Catalog Version**: GC-2026.3.3
+- **Developer**: Simran Sethi
 
 ### Quick Links
 - [Extension Configuration](pages/ExtensionConfiguration.md) - Start here for setup

@@ -13,15 +13,13 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.impl;
 
 import com.krista.extension.azure.files.service.AzureFileService;
 import org.jvnet.hk2.annotations.Service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import java.util.List;
@@ -54,8 +52,6 @@ import java.util.Map;
 @Service
 public class AzureFileServiceImpl implements AzureFileService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AzureFileServiceImpl.class);
-
     private final AzureFileListingServiceImpl listingService;
     private final AzureFileDownloadServiceImpl downloadService;
 
@@ -69,7 +65,6 @@ public class AzureFileServiceImpl implements AzureFileService {
     public AzureFileServiceImpl(AzureFileListingServiceImpl listingService, AzureFileDownloadServiceImpl downloadService) {
         this.listingService = listingService;
         this.downloadService = downloadService;
-        LOGGER.info("AzureFileServiceImpl initialized with listing and download services");
     }
 
     /**
@@ -85,8 +80,6 @@ public class AzureFileServiceImpl implements AzureFileService {
      */
     @Override
     public List<String> listFiles(String basePath, String extensionFilter, boolean recursive) {
-        LOGGER.debug("Delegating listFiles to AzureFileListingServiceImpl: path='{}', filter='{}', recursive={}",
-                basePath, extensionFilter, recursive);
         return listingService.listFiles(basePath, extensionFilter, recursive);
     }
 
@@ -102,8 +95,6 @@ public class AzureFileServiceImpl implements AzureFileService {
      */
     @Override
     public List<String> listDirectories(String basePath, boolean recursive) {
-        LOGGER.debug("Delegating listDirectories to AzureFileListingServiceImpl: path='{}', recursive={}",
-                basePath, recursive);
         return listingService.listDirectories(basePath, recursive);
     }
 
@@ -117,7 +108,6 @@ public class AzureFileServiceImpl implements AzureFileService {
      */
     @Override
     public Map<String, Object> getFile(String path) {
-        LOGGER.debug("Delegating getFile to AzureFileDownloadServiceImpl: path='{}'", path);
         return downloadService.getFile(path);
     }
 }

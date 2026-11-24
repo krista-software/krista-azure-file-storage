@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.krista.extension.azure.files.util;
@@ -51,24 +51,23 @@ public final class FileValidationUtils {
     }
 
     /**
-     * Validates file extension against allowed types.
-     * 
+     * Validates that the file has an extension.
+     *
+     * <p>The extension whitelist has been intentionally removed — any file present
+     * in Azure Files is considered downloadable. Format-specific safety (e.g.,
+     * auto-zipping HTML / executable formats) is handled downstream by
+     * {@code KristaMediaClient}.
+     *
      * @param fileName the file name to validate
      * @param logger logger instance for recording validation failures
-     * @return error message if invalid, null if valid
+     * @return error message if no extension, null if valid
      */
     public static String validateFileExtension(String fileName, Logger logger) {
         String extension = PathUtils.extractFileExtension(fileName);
-        
+
         if (extension.isEmpty()) {
             logger.warn("File extension validation failed: no extension found in '{}'", fileName);
             return String.format("The file '%s' doesn't have a file extension. Please ensure your file has a valid extension like .pdf, .docx, .xlsx, or .txt.", fileName);
-        }
-
-        if (!Constants.ALLOWED_FILE_EXTENSIONS.contains(extension)) {
-            logger.warn("File extension validation failed: '{}' not in allowed list", extension);
-            return String.format("The file type '%s' is not supported for security reasons. Please use one of these supported formats: %s",
-                extension, String.join(", ", Constants.ALLOWED_FILE_EXTENSIONS));
         }
 
         return null;

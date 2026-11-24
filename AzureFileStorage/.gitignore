@@ -40,3 +40,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Local credentials — never commit ###
+src/main/resources/config.properties
